@@ -22,6 +22,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keda-hpa-app
+  annotations:
+    keda-hpa-app.prometheus/scrape: "true"
+    keda-hpa-app.prometheus/path: "/metrics"
+    keda-hpa-app.prometheus/port: "9191"
 spec:
   replicas: 1
   selector:
