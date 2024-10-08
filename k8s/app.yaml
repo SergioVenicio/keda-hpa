@@ -1,10 +1,29 @@
-# Deployment
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keda-hpa-app
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: keda-hpa-app
+#   labels:
+#     app: keda-hpa-app
+#     service: keda-hpa-app
+#   spec:
+#     ports:
+#     - name: TCP
+#       port: 80
+#       targetPort: 80
+#     selector:
+#       app: keda-hpa-app
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keda-hpa-app
 spec:
-  revisionHistoryLimit: 3
+  replicas: 1
   selector:
     matchLabels:
       app: keda-hpa-app
@@ -12,16 +31,50 @@ spec:
     metadata:
       labels:
         app: keda-hpa-app
+        version: v1
     spec:
+      serviceAccountName: keda-hpa-app
       containers:
-      - image: sergio21/keda-hpa-app:0.0.2
+      - image: nginx:1.14.2
+        imagePullPolicy: IfNotPresent
         name: keda-hpa-app
-        resources:
-          requests:
-            memory: 100Mi
-            cpu: 50m
-          limits:
-            memory: 200Mi
-            cpu: 100m
         ports:
-        - containerPort: 5000
+        - containerPort: 80
+        resources:
+          limits:
+            memory: 150Mi
+            cpu: "0.5"
+          requests:
+            memory: 150Mi
+            cpu: "0.2"
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: GatewayClass
+metadata:
+  name: keda-hpa-app-envoy-gateway
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: insecure-port
+spec:
+  gatewayClassName: keda-hpa-app-envoy-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: keda-hpa-app-route
+spec:
+  parentRefs: [ {name: insecure-port} ]
+  hostnames: ["www.example.com"]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {group: "", kind: Service, name: keda-hpa-app, port: 80, weight: 1}
