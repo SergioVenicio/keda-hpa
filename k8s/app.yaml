@@ -78,3 +78,24 @@ spec:
         - path: {type: PathPrefix, value: /}
       backendRefs:
         - {group: "", kind: Service, name: keda-hpa-app, port: 80, weight: 1}
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: keda-hpa-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: keda-hpa-app
+  cooldownPeriod: 5
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://localhost:9090
+      metricName: http_requests_total
+      threshold: '100'
+      query: sum(rate(http_requests_total{deployment="keda-hpa-app"}[1m]))
