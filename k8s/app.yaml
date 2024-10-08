@@ -14,7 +14,7 @@ spec:
         app: keda-hpa-app
     spec:
       containers:
-      - image: sergio21/keda-hpa-app:0.0.1
+      - image: sergio21/keda-hpa-app:0.0.2
         name: keda-hpa-app
         resources:
           requests:

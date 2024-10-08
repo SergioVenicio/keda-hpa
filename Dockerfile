@@ -6,7 +6,7 @@ COPY ./go.mod .
 
 RUN go build -o app .
 
-FROM scratch
+FROM golang:1.23.2-bookworm
 
 COPY --from=BUILDER /app/app . 
 
