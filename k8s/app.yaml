@@ -2,21 +2,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: keda-hpa-app
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: keda-hpa-app
-#   labels:
-#     app: keda-hpa-app
-#     service: keda-hpa-app
-#   spec:
-#     ports:
-#     - name: TCP
-#       port: 80
-#       targetPort: 80
-#     selector:
-#       app: keda-hpa-app
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -25,7 +10,7 @@ metadata:
   annotations:
     keda-hpa-app.prometheus/scrape: "true"
     keda-hpa-app.prometheus/path: "/metrics"
-    keda-hpa-app.prometheus/port: "9191"
+    keda-hpa-app.prometheus/port: "5000"
 spec:
   replicas: 1
   selector:
@@ -39,11 +24,11 @@ spec:
     spec:
       serviceAccountName: keda-hpa-app
       containers:
-      - image: nginx:1.14.2
+      - image: sergio21/keda-hpa-app:0.0.3
         imagePullPolicy: IfNotPresent
         name: keda-hpa-app
         ports:
-        - containerPort: 80
+        - containerPort: 5000
         resources:
           limits:
             memory: 150Mi
@@ -63,12 +48,16 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: insecure-port
+telemetry:
+  metrics:
+    prometheus:
+      disable: true
 spec:
   gatewayClassName: keda-hpa-app-envoy-gateway
   listeners:
     - name: http
       protocol: HTTP
-      port: 80
+      port: 5000
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -82,7 +71,54 @@ spec:
         - path: {type: PathPrefix, value: /}
       backendRefs:
         - {group: "", kind: Service, name: keda-hpa-app, port: 80, weight: 1}
-
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-hpa-app-monitor
+  labels:
+    app: keda-hpa-app
+spec:
+  endpoints:
+    - interval: 15s
+      path: "/metrics"
+      port: "5000"
+      scheme: http
+  selector:
+    matchLabels:
+      app: keda-hpa-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ambassador-monitor
+  labels:
+    service: ambassador-monitor
+spec:
+  selector:
+    service: ambassador
+    tier: frontend
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: prometheus-metrics
+    port: 9102
+    targetPort: 9102
+    protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: keda-hpa-app-monitor
+  labels:
+    prometheus: frontend
+spec:
+  serviceMonitors:
+    matchLabels:
+      app: keda-hpa-app
+  resources:
+    requests:
+      memory: 200Mi
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject

@@ -4,7 +4,7 @@ WORKDIR /app
 COPY ./app.go .
 COPY ./go.mod .
 
-RUN go build -o app .
+RUN go mod tidy && go build -o app .
 
 FROM golang:1.23.2-bookworm
 
